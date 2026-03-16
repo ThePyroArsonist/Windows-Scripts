@@ -212,7 +212,7 @@ foreach ($file in $ExternalFiles) {
             Remove-Item $path -Force -ErrorAction Stop
             Write-Host "[+] Removed $file"
         } catch {
-            Write-Host "[!] Could not remove $file: ${_}"
+            Write-Host "[!] Could not remove $file : ${_}"
         }
     }
 }
