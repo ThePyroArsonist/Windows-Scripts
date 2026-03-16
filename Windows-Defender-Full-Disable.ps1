@@ -7,6 +7,9 @@ param(
     [switch]$TrustedInstaller
 )
 
+# Logging File
+Start-Transcript "C:\TI-script.log" -Append
+
 # ------------------------------------------------------------
 # Self Elevation to TrustedInstaller
 # ------------------------------------------------------------
@@ -15,7 +18,7 @@ function Invoke-TrustedInstaller {
     Write-Host "[*] Launching TrustedInstaller context..."
     sc.exe start TrustedInstaller | Out-Null
     $taskName = "TI-Launcher-$([guid]::NewGuid())"
-    $cmd = "powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
+    $cmd = "cmd.exe /c start powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
     # Create time for scheduled task to run
     $startTime = (Get-Date).AddMinutes(2).ToString("HH:mm"
     schtasks /Create /TN $taskName /SC ONCE /ST $startTime /RL HIGHEST /RU SYSTEM /TR $cmd /Z /F
