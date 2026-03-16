@@ -1,29 +1,66 @@
 # ============================================================
 # Windows Defender Full Removal Script
-# TrustedInstaller Execution
+# TrustedInstaller / SYSTEM / PsExec Auto-Download
 # ============================================================
 
 param(
     [switch]$TrustedInstaller
 )
 
-# Logging File
-Start-Transcript "C:\TI-script.log" -Append
+# ------------------------------------------------------------
+# Logging Setup
+# ------------------------------------------------------------
+
+$LogDir = "C:\Logs"
+$LogFile = "$LogDir\DefenderRemoval.log"
+
+if (!(Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+}
+
+Start-Transcript -Path $LogFile -Append
+
+function Write-Log {
+    param([string]$msg)
+    $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "[$time] $msg"
+    Write-Host $line
+    Add-Content -Path $LogFile -Value $line
+}
+
+Write-Log "==== Script Started ===="
 
 # ------------------------------------------------------------
-# Self Elevation to TrustedInstaller
+# PsExec Auto-Download
+# ------------------------------------------------------------
+
+$PsExecPath = Join-Path $PSScriptRoot "PsExec.exe"
+
+if (!(Test-Path $PsExecPath)) {
+    Write-Log "PsExec.exe not found, downloading..."
+    $url = "https://download.sysinternals.com/files/PSTools.zip"
+    $zipPath = Join-Path $env:TEMP "PSTools.zip"
+    Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+    Expand-Archive -Path $zipPath -DestinationPath $PSScriptRoot -Force
+    Remove-Item $zipPath
+    Write-Log "PsExec.exe downloaded and extracted to script folder"
+}
+
+# ------------------------------------------------------------
+# TrustedInstaller Elevation
 # ------------------------------------------------------------
 
 function Invoke-TrustedInstaller {
-    Write-Host "[*] Launching TrustedInstaller context..."
-    sc.exe start TrustedInstaller | Out-Null
-    $taskName = "TI-Launcher-$([guid]::NewGuid())"
-    $cmd = "cmd.exe /c start powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
-    # Create time for scheduled task to run
-    $startTime = (Get-Date).AddMinutes(2).ToString("HH:mm"
-    schtasks /Create /TN $taskName /SC ONCE /ST $startTime /RL HIGHEST /RU SYSTEM /TR $cmd /Z /F
-    schtasks /Run /TN $taskName | Out-Null
 
+    Write-Log "Starting TrustedInstaller service..."
+    sc.exe start TrustedInstaller | Out-Null
+
+    Write-Log "Launching script in SYSTEM context via PsExec..."
+    $cmd = "-accepteula -i -s powershell.exe -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
+    Start-Process $PsExecPath -ArgumentList $cmd -Wait
+
+    Write-Log "Relaunch attempted, exiting original script"
+    Stop-Transcript
     exit
 }
 
@@ -31,7 +68,17 @@ if (-not $TrustedInstaller) {
     Invoke-TrustedInstaller
 }
 
-Write-Host "[+] Running as TrustedInstaller equivalent"
+Write-Log "Running in elevated SYSTEM context"
+
+# ------------------------------------------------------------
+# Function to run commands as TrustedInstaller
+# ------------------------------------------------------------
+
+function Run-AsTrustedInstaller {
+    param([string]$Command)
+    # Wrap in cmd to call sc.exe start TrustedInstaller
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c sc start TrustedInstaller & $Command" -Wait
+}
 
 # ------------------------------------------------------------
 # Stop Defender Services
@@ -47,80 +94,51 @@ $services = @(
 )
 
 foreach ($svc in $services) {
-
+    Write-Log "Stopping service: $svc"
     Stop-Service $svc -Force -ErrorAction SilentlyContinue
     sc.exe config $svc start= disabled | Out-Null
-
 }
 
 # ------------------------------------------------------------
-# Disable Defender Policies
+# Disable Defender / SmartScreen Policies
 # ------------------------------------------------------------
 
-Write-Host "[*] Disabling Defender policies via Registry..."
-
+Write-Log "Disabling Defender policies..."
 $policy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
-
 New-Item $policy -Force | Out-Null
-
 Set-ItemProperty $policy DisableAntiSpyware 1
 Set-ItemProperty $policy DisableRealtimeMonitoring 1
 Set-ItemProperty $policy DisableAntiVirus 1
 Set-ItemProperty $policy DisableSpecialRunningModes 1
 
-# ------------------------------------------------------------
-# Disable SmartScreen
-# ------------------------------------------------------------
-
-Write-Host "[*] Disabling SmartScreen..."
-
+Write-Log "Disabling SmartScreen..."
 $sys = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
-
 New-Item $sys -Force | Out-Null
-
 Set-ItemProperty $sys EnableSmartScreen 0
 
 # ------------------------------------------------------------
 # Disable VBS / Memory Integrity
 # ------------------------------------------------------------
 
-Write-Host "[*] Disabling virtualization security..."
-
+Write-Log "Disabling virtualization-based security..."
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 0 /f
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v Enabled /t REG_DWORD /d 0 /f
-
 bcdedit /set hypervisorlaunchtype off
 
 # ------------------------------------------------------------
 # Remove Defender Scheduled Tasks
 # ------------------------------------------------------------
 
-Write-Host "[*] Removing Defender scheduled tasks..."
-
-Get-ScheduledTask | Where {
-
-    $_.TaskPath -like "*Windows Defender*"
-
-} | ForEach {
-
+Write-Log "Removing Defender scheduled tasks..."
+Get-ScheduledTask | Where {$_.TaskPath -like "*Windows Defender*"} |
+ForEach {
+    Write-Log "Removing task: $($_.TaskName)"
     Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
-
 }
 
 # ------------------------------------------------------------
-# Remove Windows Security App
+# Remove Windows Security / Defender Appx Packages
 # ------------------------------------------------------------
-
-Write-Host "[*] Removing Windows Security UI..."
-
-Get-AppxPackage -AllUsers *SecHealthUI* | Remove-AppxPackage -AllUsers
-Get-AppxProvisionedPackage -Online | Where {$_.PackageName -like "*SecHealthUI*"} | Remove-AppxProvisionedPackage -Online
-
-# ------------------------------------------------------------
-# Remove Defender Platform Packages
-# ------------------------------------------------------------
-
-Write-Host "[*] Removing Defender platform..."
 
 $packages = @(
 "Microsoft.Windows.Defender",
@@ -130,36 +148,27 @@ $packages = @(
 )
 
 foreach ($pkg in $packages) {
-
+    Write-Log "Removing Appx package: $pkg"
     Get-AppxPackage -AllUsers *$pkg* | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-
+    Get-AppxProvisionedPackage -Online | Where {$_.PackageName -like "*$pkg*"} |
+        Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
 }
 
 # ------------------------------------------------------------
 # Remove Defender Drivers
 # ------------------------------------------------------------
 
-Write-Host "[*] Removing Defender drivers..."
-
-$drivers = @(
-"wdboot",
-"wdfilter",
-"wdnisdrv",
-"wdnisproxy"
-)
+$drivers = @("wdboot","wdfilter","wdnisdrv","wdnisproxy")
 
 foreach ($drv in $drivers) {
-
+    Write-Log "Removing driver: $drv"
     sc.exe stop $drv 2>$null
     sc.exe delete $drv 2>$null
-
 }
 
 # ------------------------------------------------------------
 # Remove Defender Directories
 # ------------------------------------------------------------
-
-Write-Host "[*] Removing Defender files..."
 
 $paths = @(
 "C:\ProgramData\Microsoft\Windows Defender",
@@ -169,36 +178,34 @@ $paths = @(
 )
 
 foreach ($p in $paths) {
-
+    Write-Log "Removing directory: $p"
     takeown /F $p /R /D Y 2>$null
     icacls $p /grant administrators:F /T 2>$null
     Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
-
 }
 
 # ------------------------------------------------------------
-# Disable Security Center Integration
+# Remove Defender WMI Entries
 # ------------------------------------------------------------
 
-Write-Host "[*] Disabling Windows Security Center..."
+Write-Log "Cleaning WMI Defender entries..."
+Get-WmiObject -Namespace "root\SecurityCenter2" -Class AntiVirusProduct -ErrorAction SilentlyContinue | Remove-WmiObject
 
+# ------------------------------------------------------------
+# Disable Security Center
+# ------------------------------------------------------------
+
+Write-Log "Disabling Windows Security Center..."
 sc.exe stop wscsvc
 sc.exe config wscsvc start= disabled
-
-# ------------------------------------------------------------
-# Remove Defender WMI providers
-# ------------------------------------------------------------
-
-Write-Host "[*] Cleaning WMI Defender namespaces..."
-
-Get-WmiObject -Namespace "root\SecurityCenter2" -Class AntiVirusProduct -ErrorAction SilentlyContinue | Remove-WmiObject
 
 # ------------------------------------------------------------
 # Completion
 # ------------------------------------------------------------
 
-Write-Host ""
-Write-Host "====================================="
-Write-Host "Windows Defender removal completed"
-Write-Host "Reboot the system to finalize changes"
-Write-Host "====================================="
+Write-Log "====================================="
+Write-Log "Windows Defender removal completed"
+Write-Log "System reboot required"
+Write-Log "====================================="
+
+Stop-Transcript
