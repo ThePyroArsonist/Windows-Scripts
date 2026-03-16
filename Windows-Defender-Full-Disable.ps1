@@ -58,6 +58,12 @@ function Write-Log {
     $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $line = "[$time] $msg"
     Write-Host $line
+    try {
+        Add-Content -Path $LogFile -Value $line -Encoding UTF8
+    }
+    catch {
+        Write-Host "[!] Failed to write log file"
+    }
 }
 
 Write-Log "==== Script Started ===="
