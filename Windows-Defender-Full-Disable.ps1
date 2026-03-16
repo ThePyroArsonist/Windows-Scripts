@@ -58,7 +58,6 @@ function Write-Log {
     $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $line = "[$time] $msg"
     Write-Host $line
-    Add-Content -Path $LogFile -Value $line
 }
 
 Write-Log "==== Script Started ===="
