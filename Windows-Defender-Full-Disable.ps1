@@ -16,7 +16,7 @@ function Invoke-TrustedInstaller {
     sc.exe start TrustedInstaller | Out-Null
     $taskName = "TI-Launcher-$([guid]::NewGuid())"
     $cmd = "powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
-    schtasks /Create /TN $taskName /SC ONCE /ST 00:00 /RL HIGHEST /RU SYSTEM /TR $cmd /F | Out-Null
+    schtasks /Create /TN $taskName /SC ONSTART /RL HIGHEST /RU SYSTEM /TR $cmd /F | Out-Null
     schtasks /Run /TN $taskName | Out-Null
 
     exit
