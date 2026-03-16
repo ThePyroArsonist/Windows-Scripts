@@ -16,7 +16,9 @@ function Invoke-TrustedInstaller {
     sc.exe start TrustedInstaller | Out-Null
     $taskName = "TI-Launcher-$([guid]::NewGuid())"
     $cmd = "powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -TrustedInstaller"
-    schtasks /Create /TN $taskName /SC ONSTART /RL HIGHEST /RU SYSTEM /TR $cmd /F | Out-Null
+    # Create time for scheduled task to run
+    $startTime = (Get-Date).AddMinutes(2).ToString("HH:mm"
+    schtasks /Create /TN $taskName /SC ONCE /ST $startTime /RL HIGHEST /RU SYSTEM /TR $cmd /Z /F
     schtasks /Run /TN $taskName | Out-Null
 
     exit
