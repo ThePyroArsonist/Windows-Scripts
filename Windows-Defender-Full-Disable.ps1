@@ -13,7 +13,38 @@ param(
 
 $LogDir = "C:\Logs"
 $ScriptDir = $PSScriptRoot
-$ExternalFiles = @("Ps*")
+$ExternalFiles = @(
+    "Windows-Defender-Full-Disable.ps1",
+    "PsExec.exe",
+    "PsExec64.exe",
+    "Pstools.chm",
+    "psversion.txt",
+    "Eula.txt",
+    "pssuspend.exe",
+    "pssuspend64.exe",
+    "PsService.exe",
+    "PsService64.exe",
+    "pspasswd.exe",
+    "pspasswd64.exe",
+    "psloglist.exe",
+    "psloglist64.exe",
+    "pslist.exe",
+    "pslist64.exe",
+    "pskill.exe",
+    "pskill64.exe",
+    "PsInfo.exe",
+    "PsInfo64.exe",
+    "PsGetsid.exe",
+    "PsGetsid64.exe",
+    "psfile.exe",
+    "psfile64.exe",
+    "psshutdown.exe",
+    "psshutdown64.exe",
+    "psping.exe",
+    "psping64.exe",
+    "PsLoggedon.exe",
+    "PsLoggedon64.exe"
+)
 $LogFile = "$LogDir\DefenderRemoval.log"
 
 if (!(Test-Path $LogDir)) {
