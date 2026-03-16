@@ -51,22 +51,25 @@ if (!(Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
 
-Start-Transcript -Path $LogFile -Append
+
+# Create seperate Log files for TI and Admin session
+$timeStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+if ($TrustedInstaller) {
+    $LogFile = Join-Path $LogDir "TI-Script-$timeStamp-SYSTEM.log"
+} else {
+    $LogFile = Join-Path $LogDir "TI-Script-$timeStamp-Parent.log"
+}
+
 
 function Write-Log {
     param([string]$msg)
     $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $line = "[$time] $msg"
     Write-Host $line
-    try {
-        Add-Content -Path $LogFile -Value $line -Encoding UTF8
-    }
-    catch {
-        Write-Host "[!] Failed to write log file"
-    }
+    Add-Content -Path $LogFile -Value $line
 }
 
-Write-Log "==== Script Started ===="
+Write-Log "Script started. TrustedInstaller: $TrustedInstaller"
 
 # ------------------------------------------------------------
 # PsExec Auto-Download
@@ -98,7 +101,6 @@ function Invoke-TrustedInstaller {
     Start-Process $PsExecPath -ArgumentList $cmd -Wait
 
     Write-Log "Relaunch attempted, exiting original script"
-    Stop-Transcript
     exit
 }
 
