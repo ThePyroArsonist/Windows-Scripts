@@ -45,7 +45,6 @@ $ExternalFiles = @(
     "PsLoggedon.exe",
     "PsLoggedon64.exe"
 )
-$LogFile = "$LogDir\DefenderRemoval.log"
 
 if (!(Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
