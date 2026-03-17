@@ -262,5 +262,3 @@ Write-Log "====================================="
 Write-Log "Windows Defender removal completed"
 Write-Log "System reboot required"
 Write-Log "====================================="
-
-Stop-Transcript
